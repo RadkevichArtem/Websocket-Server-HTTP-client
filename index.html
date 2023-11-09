@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>Client frontend</title>
+    <style>
+        body {
+            margin: 100;
+            font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color:lightgrey;
+        }
+
+        #form {
+            background: rgba(0, 0, 0, 0.15);
+            padding: 0.25rem;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            height: 3rem;
+            box-sizing: border-box;
+            backdrop-filter: blur(10px);
+        }
+
+        #input {
+            border: none;
+            padding: 0 1rem;
+            flex-grow: 1;
+            border-radius: 2rem;
+            margin: 0.25rem;
+        }
+
+        .input-1 {
+            background: #333;
+            border: none;
+            padding: 0 1rem;
+            margin: 1rem;
+            border-radius: 3px;
+            outline: none;
+            color: #fff;
+            min-height: 1.5rem;
+        }
+
+        #form>button {
+            background: #333;
+            border: none;
+            padding: 0 1rem;
+            margin: 0.25rem;
+            border-radius: 3px;
+            outline: none;
+            color: #fff;
+        }
+    </style>
+</head>
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+
+<body>
+    <div>Available keywords: html, javascript, python</div>
+    <ul id="messages"></ul>
+    <form id="form" action="">
+        <input id="input" autocomplete="off" /><button>Send word</button>
+    </form>
+    <div id="urlsList"></div>
+    <div id="myFrame"></div>
+</body>
+
+<script>
+    const socket = io();
+    const form = document.getElementById('form');
+    const input = document.getElementById('input');
+
+    form.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (input.value) {
+            socket.emit('message', input.value);
+            input.value = '';
+        }
+    });
+
+    socket.on('error_no_keyword', (keyword) => {
+        console.log('Неверно введено ключевое слово!');
+        const urlsList = document.getElementById('urlsList');
+        const link = document.createElement('div');
+        link.innerHTML = `Неверно введено ключевое слово: ${keyword}`;
+        urlsList.appendChild(link);
+    })
+
+    socket.on('urls_list', function (event) {
+        const urls = JSON.parse(event);
+        const urlsList = document.getElementById('urlsList');
+        urlsList.innerHTML = '';
+
+        urls.forEach((url) => {
+            const container = document.createElement('div');
+            container.style.marginBottom = '20px';
+
+            const link = document.createElement('a');
+            link.setAttribute('target', '_blank');
+            link.href = url;
+            link.innerHTML = url;
+            container.appendChild(link);
+
+            const progressBar = document.createElement('progress');
+            progressBar.value = 0;
+            progressBar.max = 100;
+            container.appendChild(progressBar);
+
+            const downloadButton = document.createElement('button');
+            downloadButton.name = url;
+            downloadButton.setAttribute('class', 'input-1');
+            downloadButton.setAttribute('status', 'ready');
+            downloadButton.innerHTML = 'Download Content';
+            container.appendChild(downloadButton);
+            urlsList.appendChild(container);
+            console.log('button status:', downloadButton.getAttribute('status'));
+            downloadButton.addEventListener('click', () => {
+                if (downloadButton.getAttribute('status') == 'ready') {
+                    socket.emit('url_selected', url);
+                    downloadButton.innerHTML = 'Downloading...';
+                }
+            });
+        });
+    })
+
+    socket.on('content_downloaded', (downloadedContent) => {
+        console.log('Записываем контент в localStorage');
+        localStorage.setItem(downloadedContent.id, JSON.stringify({ url_orig: downloadedContent.id, content: downloadedContent.data }));
+        const downloadButtons = document.getElementsByName(downloadedContent.id);
+        console.log('дебаг');
+        downloadButtons.forEach((buttonDone) => {
+            buttonDone.innerHTML = 'Downloaded! Watch offline!';
+            buttonDone.setAttribute('status', 'downloaded');
+            buttonDone.addEventListener('click', function () {
+                if (buttonDone.getAttribute('status') == 'downloaded') {
+                    const myHtml = JSON.parse(localStorage.getItem(downloadedContent.id));
+                    console.log(myHtml.content);
+
+                    const myFrame = document.getElementById('myFrame');
+                    myFrame.style.cssText = 'margin: 0 auto; max-width: 80vw; min-width: 30vw';
+                    myFrame.innerHTML = 'ПРОСМОТР СКАЧАННОГО КОНТЕНТА';
+
+                    const myFrameForHTML = document.createElement('div');
+                    myFrameForHTML.innerHTML = myHtml.content;
+                    myFrameForHTML.style.cssText = 'color: black; border: 1px solid black; margin: 0 auto;';
+                    myFrame.appendChild(myFrameForHTML);
+
+                }
+            });
+        });
+    })
+
+</script>
+
+</html>
